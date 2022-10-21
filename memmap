@@ -1,0 +1,15 @@
+
+MEMORY
+{
+    ram : ORIGIN = 0x80000, LENGTH = 0x1000000
+}
+
+
+
+SECTIONS
+{
+    ENTRY(_start)
+    .text : { *(.text*) } > ram
+    .bss : { *(.bss*) } > ram
+}
+
