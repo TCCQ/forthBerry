@@ -305,9 +305,9 @@ fb_pitch:
 	//I guess I could put pixel order here too but idk if we need it atm
 	
 	.text 2
-	//takes x pos in x20
-	//y in x21
-	//color as ARGB in w22
+	//takes x pos in x21
+	//y in x22
+	//color as ARGB in w20
 	//probably better to not use builtin stuff for speed but whatever
 	.globl set_pixel
 set_pixel:
@@ -317,18 +317,18 @@ set_pixel:
 	ldr x17, [x19, #8] //height
 	ldr x16, [x19, #16] //addr
 	ldr x19, [x19, #24] //pitch
-	cmp x20, x18 //sets flags
-	b.ge out_of_bounds
-	cmp x20, #0
-	b.lt out_of_bounds
-	cmp x21, x17 //sets flags
+	cmp x21, x18 //sets flags
 	b.ge out_of_bounds
 	cmp x21, #0
 	b.lt out_of_bounds
+	cmp x22, x17 //sets flags
+	b.ge out_of_bounds
+	cmp x22, #0
+	b.lt out_of_bounds
 
-	lsl x18, x20, #2 //x*4
-	madd x18, x19, x21, x18 // y*pitch + x
-	str w22, [x16, x18]
+	lsl x18, x21, #2 //x*4
+	madd x18, x19, x22, x18 // y*pitch + x
+	str w20, [x16, x18]
 out_of_bounds:
 	ret
 	
@@ -337,35 +337,53 @@ out_of_bounds:
 	//clobbers 
 	//puts that character in 8x16 font at that pixel
 	.globl set_char
-set_char:
-	lsl x15, x21, #2 //x * 4 for word addressing
-	mov x16, #0
-	movk x16, #0xFFFF
-	movk x16, #0xFFFF, lsl 16 //w16 all 1s
-	
+set_char:	
+	//avoid clobbering inputs
+	push x21
+	push x22
+	push x23
+	push x24
+	mov x23, x21
+	mov x24, x22
+
+	push x30 //want to go deeper
 	.global font_get_character
 	bl font_get_character //puts top half in x21, bottom half in x22
-
+	//low byte is top row, high is bottom
+	//low bit is left, high is right
+	pop x30 
+	
+	lsl x15, x23, #2 //x * 4 for word addressing
+	mov x16, #0
+	movk x16, #0xFFFF
+	movk x16, #0x00FF, lsl 16 //w16 all 1s
+	
 	adrp x17, :pg_hi21:fb_addr
 	add x17, x17,#:lo12:fb_addr
 	ldr x18, [x17] //addr
 	ldr x17, [x17, #8] //pitch
-	madd x19, x22, x17, x15 //y * pitch + x
+	madd x19, x24, x17, x15 //y * pitch + x
 	add x19, x19, x18 //char origin addr
 
 	mov x12, #0 //top / bottom half selector
 	mov x15, #0 //pixel x offset within char
 	mov x14, #0 //pixel y offset within char
+	
+	mov x23, x21 //top half of char to sampling area
 half:
 	lsl x13, x14, #3 //y*8
-	lsr x13, x21, x13 //shift for y
+	lsr x13, x23, x13 //shift for y
 	lsr x13, x13, x15 //shift for x
-	and x13, x13, #0x01 //bottom bit (sets zero flag)
-	csel w13, wzr, w16, eq //fill 1s if x13 & 1, else fill zeros
+	ubfm x13, x13, #0, #0 //isolate bottom bit
+	cmp x13, #0
+	csel w13, w16, wzr, eq //fill 0s if x13 & 1, else fill 1s
+	//inverted cause my font is black on white
 	//w13 is now color we want
 
+
 	add x11, x12, x14 //half selector + y
-	madd x18, x11, x17, x15 //linear pixel offset from origin
+	lsl x18, x15, #2 //x * 4 for word addressing
+	madd x18, x11, x17, x18 //linear pixel offset from origin
 	str w13, [x19, x18] //color @ origin + offset
 
 	add x15, x15, #1 //increment x
@@ -375,14 +393,19 @@ half:
 	and x15, x15, #0x07 //keep x values in [0,7]
 	cmp x14, #8
 	b.lt half
-
+	//done with half
+	
 	cmp x12, #8
-	beq set_char_out //we are done
+	b.eq set_char_out //we are done
 	mov x12, #8 //do bottom half now
-	mov x21, x22 //use other half of char
+	mov x23, x22 //use other half of char
 	mov x15, #0
 	mov x14, #0
 	b half
 set_char_out:
+	pop x24
+	pop x23
+	pop x22
+	pop x21
 	ret
 	

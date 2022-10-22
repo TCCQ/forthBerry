@@ -33,8 +33,8 @@ clean:
 	rm -rf mnt
 	rm -rf sd.img
 
-test: sd.img
+test: kernel.img
 	qemu-system-aarch64 -machine raspi3b -kernel kernel.img
-gdb: sd.img
+gdb: kernel.img
 	qemu-system-aarch64 -machine raspi3b -kernel kernel.img -s -S
 

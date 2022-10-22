@@ -28,19 +28,37 @@ master:
 	cbz x20, hang //something went wrong
 	//otherwise
 
+
+	b hw
+	
+	//full ascii test
+	mov x20, #0
+a_test:
+	ubfx x21, x20, #0, #4
+	ubfx x22, x20, #4, #4
+	lsl x21, x21, #4
+	lsl x22, x22, #5
+	.global set_char
+	bl set_char
+	add x20, x20, #1
+	cmp x20, #0xFF
+	b.le a_test
+	b hang
+
+
+hw:	
 	mov x21, #0 //x pixel offset
 	mov x22, #0 //y
-	adrp x23, :pg_hi21:text_hold
-	add x23, x23, #:lo12:text_hold //text addr
-	mov x24, #0 //x
+	adrp x0, :pg_hi21:text_hold
+	add x0, x0, #:lo12:text_hold //text addr
+	mov x1, #0 //x
 t_loop:
-	ldrb w25, [x23, x24]
-	cbz w25, hang
-	mov w20, w25 //ascii
+	ldrb w20, [x0, x1]
+	cbz w20, hang
 	//x21 and x22 are alredy set
 	.global set_char
 	bl set_char
-	add x24, x24, #1
+	add x1, x1, #1
 	add x21, x21, #8
 	b t_loop
 text_hold:
